@@ -1,0 +1,3 @@
+@echo off
+echo Starting ngrok tunnel for HTTPS...
+ngrok http 5173
