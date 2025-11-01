@@ -370,7 +370,7 @@ app.listen(PORT, async () => {
     console.log(`🚀 Server running on port ${PORT}`);
     console.log(`📋 WEBAPP_URL: ${webAppUrl}`);
     console.log(`📋 Use Webhook: ${useWebhook ? 'YES' : 'NO'}`);
-    
+
     // Настраиваем бота в зависимости от окружения
     if (useWebhook && webAppUrl && !webAppUrl.includes('your-ngrok-url')) {
         // Режим webhook для Railway/продакшена
@@ -382,10 +382,10 @@ app.listen(PORT, async () => {
             } catch (e) {
                 // Игнорируем ошибки при удалении
             }
-            
+
             // Небольшая задержка перед установкой нового webhook
             await new Promise(resolve => setTimeout(resolve, 1000));
-            
+
             const webhookUrl = `${webAppUrl}/webhook`;
             console.log(`🔗 Устанавливаем webhook: ${webhookUrl}`);
             await bot.setWebHook(webhookUrl, { drop_pending_updates: true });
@@ -405,7 +405,7 @@ app.listen(PORT, async () => {
             } catch (e) {
                 // Игнорируем ошибки
             }
-            
+
             await bot.startPolling({ polling: { interval: 1000, params: { timeout: 10 } } });
             console.log(`🤖 Telegram bot активен (polling mode)`);
         } catch (error) {
