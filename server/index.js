@@ -213,14 +213,14 @@ bot.onText(/\/start/, async (msg) => {
 ✨ Каждый анализ уникален и креативен`;
 
     // Создаем inline keyboard с кнопкой для запуска веб-приложения
-    const webAppUrl = process.env.WEBAPP_URL || 'https://your-ngrok-url.ngrok.io';
+    const webAppUrlForKeyboard = webAppUrl || 'https://your-ngrok-url.ngrok.io';
     const keyboard = {
         inline_keyboard: [
             [
                 {
                     text: '🚀 Запустить бота',
                     web_app: {
-                        url: webAppUrl
+                        url: webAppUrlForKeyboard
                     }
                 }
             ]
@@ -327,8 +327,27 @@ app.get('/api/health', (req, res) => {
         status: 'OK',
         timestamp: new Date().toISOString(),
         uptime: process.uptime(),
-        botMode: useWebhook ? 'webhook' : 'polling'
+        botMode: useWebhook ? 'webhook' : 'polling',
+        webAppUrl: webAppUrl
     });
+});
+
+// Тестовый endpoint для проверки webhook
+app.get('/test-webhook', async (req, res) => {
+    try {
+        const webhookInfo = await bot.getWebHookInfo();
+        res.json({
+            success: true,
+            webhookInfo: webhookInfo,
+            webhookUrl: webhookInfo.url,
+            pendingUpdates: webhookInfo.pending_update_count
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message
+        });
+    }
 });
 
 // API endpoints
