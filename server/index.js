@@ -69,15 +69,64 @@ db.serialize(() => {
 console.log('🤖 Инициализация Telegram бота...');
 console.log('Token:', process.env.TELEGRAM_BOT_TOKEN ? 'Найден' : 'НЕ НАЙДЕН!');
 
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { polling: true });
+// Инициализируем бот без автоматического polling
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
+    polling: {
+        interval: 1000,
+        autoStart: true,
+        params: {
+            timeout: 10
+        }
+    }
+});
 
 // Обработка ошибок бота
 bot.on('error', (error) => {
     console.error('❌ Ошибка Telegram бота:', error);
+    // Если ошибка 409 (конфликт), пытаемся остановить polling и перезапустить
+    if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
+        console.log('⚠️ Обнаружен конфликт: другой экземпляр бота работает');
+        console.log('🔄 Останавливаем polling и ждем 5 секунд...');
+        bot.stopPolling().then(() => {
+            setTimeout(() => {
+                console.log('🔄 Перезапускаем polling...');
+                bot.startPolling().catch(err => {
+                    console.error('❌ Не удалось перезапустить polling:', err.message);
+                });
+            }, 5000);
+        }).catch(err => {
+            console.error('❌ Ошибка остановки polling:', err.message);
+        });
+    }
 });
 
 bot.on('polling_error', (error) => {
     console.error('❌ Ошибка polling:', error);
+    // Если ошибка 409, это означает, что другой экземпляр уже работает
+    if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
+        console.log('⚠️ ВНИМАНИЕ: Другой экземпляр бота уже запущен!');
+        console.log('💡 Убедитесь, что:');
+        console.log('   1. Локально не запущен бот (node server/index.js)');
+        console.log('   2. На Railway только один активный деплой');
+        console.log('   3. Старые процессы бота остановлены');
+    }
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+    console.log('🛑 Получен сигнал SIGTERM, останавливаем бота...');
+    bot.stopPolling().then(() => {
+        console.log('✅ Polling остановлен');
+        process.exit(0);
+    });
+});
+
+process.on('SIGINT', () => {
+    console.log('🛑 Получен сигнал SIGINT, останавливаем бота...');
+    bot.stopPolling().then(() => {
+        console.log('✅ Polling остановлен');
+        process.exit(0);
+    });
 });
 
 console.log('✅ Telegram бот инициализирован');
