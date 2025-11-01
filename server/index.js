@@ -12,6 +12,7 @@ const PORT = process.env.PORT || 3001;
 
 // Middleware
 app.use(cors());
+// Важно: express.json() должен быть ДО webhook endpoint
 app.use(express.json());
 
 // Serve static files from React build
@@ -325,9 +326,9 @@ bot.on('photo', async (msg) => {
     }
 });
 
-// Webhook endpoint для Telegram (должен быть до других POST маршрутов)
-// Важно: этот маршрут должен быть ДО app.get('*', ...) чтобы не перехватывался
-app.post('/webhook', express.json(), (req, res) => {
+// Webhook endpoint для Telegram
+// КРИТИЧЕСКИ ВАЖНО: этот endpoint должен быть ДО app.get('*', ...) и других маршрутов
+app.post('/webhook', (req, res) => {
     try {
         const update = req.body;
         console.log('📥 Получено обновление от Telegram');
