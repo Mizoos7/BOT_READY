@@ -193,7 +193,9 @@ async function analyzePhoto(imagePath) {
 
 // Обработчик команды /start
 bot.onText(/\/start/, async (msg) => {
+    console.log('✅ Обработчик /start вызван!');
     console.log('📨 Получена команда /start от пользователя:', msg.from.username || msg.from.first_name);
+    console.log('📋 Chat ID:', msg.chat.id);
     const chatId = msg.chat.id;
     const user = msg.from;
 
@@ -227,7 +229,14 @@ bot.onText(/\/start/, async (msg) => {
         ]
     };
 
-    bot.sendMessage(chatId, welcomeText, { reply_markup: keyboard });
+    try {
+        console.log('📤 Отправляем приветственное сообщение...');
+        await bot.sendMessage(chatId, welcomeText, { reply_markup: keyboard });
+        console.log('✅ Сообщение отправлено успешно!');
+    } catch (error) {
+        console.error('❌ Ошибка отправки сообщения:', error);
+        console.error('❌ Stack:', error.stack);
+    }
 });
 
 // Обработчик команды /help
@@ -310,13 +319,24 @@ bot.on('photo', async (msg) => {
 });
 
 // Webhook endpoint для Telegram (должен быть до других POST маршрутов)
-app.post('/webhook', (req, res) => {
+// Важно: этот маршрут должен быть ДО app.get('*', ...) чтобы не перехватывался
+app.post('/webhook', express.json(), (req, res) => {
     try {
-        console.log('📥 Получено обновление от Telegram:', req.body?.message?.text || 'не текстовое сообщение');
-        bot.processUpdate(req.body);
+        const update = req.body;
+        console.log('📥 Получено обновление от Telegram');
+        console.log('📋 Тип обновления:', update.message ? 'message' : update.callback_query ? 'callback_query' : 'other');
+        console.log('📋 Данные:', JSON.stringify(update, null, 2));
+
+        if (update.message) {
+            console.log('💬 Сообщение:', update.message.text || 'не текстовое');
+            console.log('👤 От:', update.message.from?.username || update.message.from?.first_name);
+        }
+
+        bot.processUpdate(update);
         res.sendStatus(200);
     } catch (error) {
         console.error('❌ Ошибка обработки webhook:', error);
+        console.error('❌ Stack:', error.stack);
         res.sendStatus(200); // Всегда отвечаем 200, чтобы Telegram не повторял запрос
     }
 });
