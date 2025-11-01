@@ -7,6 +7,18 @@ const sqlite3 = require('sqlite3');
 const path = require('path');
 require('dotenv').config();
 
+// Обработка необработанных ошибок
+process.on('uncaughtException', (error) => {
+    console.error('❌ Необработанное исключение:', error);
+    console.error('❌ Stack:', error.stack);
+    // Не завершаем процесс, чтобы Railway мог перезапустить
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('❌ Необработанное отклонение промиса:', reason);
+    console.error('❌ Promise:', promise);
+});
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -19,9 +31,17 @@ app.use(express.json());
 app.use(express.static(path.join(__dirname, '../dist')));
 
 // Multer для загрузки файлов
+const uploadsDir = path.join(__dirname, '../uploads');
+const fs = require('fs');
+// Создаем папку uploads если её нет
+if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+    console.log('✅ Создана папка uploads:', uploadsDir);
+}
+
 const storage = multer.diskStorage({
     destination: (req, file, cb) => {
-        cb(null, '../uploads/');
+        cb(null, uploadsDir);
     },
     filename: (req, file, cb) => {
         cb(null, Date.now() + '-' + file.originalname);
@@ -43,7 +63,15 @@ const upload = multer({
 });
 
 // Инициализация базы данных
-const db = new sqlite3.Database('../bot.db');
+// Используем абсолютный путь или путь относительно текущей директории
+const dbPath = path.join(__dirname, '../bot.db');
+const db = new sqlite3.Database(dbPath, (err) => {
+    if (err) {
+        console.error('❌ Ошибка подключения к БД:', err);
+    } else {
+        console.log('✅ База данных подключена:', dbPath);
+    }
+});
 
 // Создание таблиц
 db.serialize(() => {
