@@ -376,26 +376,26 @@ app.listen(PORT, async () => {
         // Режим webhook для Railway/продакшена
         try {
             const webhookUrl = `${webAppUrl}/webhook`;
-            
+
             // Сначала получаем информацию о текущем webhook
             console.log('🔍 Проверяем текущий webhook...');
             try {
                 const webhookInfo = await bot.getWebHookInfo();
                 if (webhookInfo.url) {
                     console.log(`📋 Текущий webhook: ${webhookInfo.url}`);
-                    
+
                     // Если webhook уже установлен на тот же URL, ничего не делаем
                     if (webhookInfo.url === webhookUrl) {
                         console.log(`✅ Webhook уже установлен на правильный URL`);
                         console.log(`🤖 Telegram bot активен (webhook mode)`);
                         return;
                     }
-                    
+
                     // Удаляем старый webhook
                     console.log('🔄 Удаляем старый webhook...');
                     await bot.deleteWebHook({ drop_pending_updates: true });
                     console.log('✅ Старый webhook удален');
-                    
+
                     // Ждем, чтобы Telegram обработал удаление
                     await new Promise(resolve => setTimeout(resolve, 2000));
                 } else {
@@ -411,10 +411,10 @@ app.listen(PORT, async () => {
                     // Игнорируем ошибки
                 }
             }
-            
+
             console.log(`🔗 Устанавливаем новый webhook: ${webhookUrl}`);
             await bot.setWebHook(webhookUrl, { drop_pending_updates: true });
-            
+
             // Проверяем, что webhook установлен
             await new Promise(resolve => setTimeout(resolve, 1000));
             const verifyInfo = await bot.getWebHookInfo();
