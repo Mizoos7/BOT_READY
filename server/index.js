@@ -69,67 +69,50 @@ db.serialize(() => {
 console.log('🤖 Инициализация Telegram бота...');
 console.log('Token:', process.env.TELEGRAM_BOT_TOKEN ? 'Найден' : 'НЕ НАЙДЕН!');
 
-// Инициализируем бот без автоматического polling
-const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN, { 
-    polling: {
-        interval: 1000,
-        autoStart: true,
-        params: {
-            timeout: 10
-        }
-    }
-});
+// Определяем режим работы: webhook для Railway, polling для локальной разработки
+const useWebhook = process.env.RAILWAY_ENVIRONMENT || process.env.WEBAPP_URL;
+const webAppUrl = process.env.WEBAPP_URL || 'https://your-ngrok-url.ngrok.io';
+
+// Инициализируем бот без polling (будем использовать webhook или polling вручную)
+const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
 
 // Обработка ошибок бота
 bot.on('error', (error) => {
     console.error('❌ Ошибка Telegram бота:', error);
-    // Если ошибка 409 (конфликт), пытаемся остановить polling и перезапустить
-    if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
-        console.log('⚠️ Обнаружен конфликт: другой экземпляр бота работает');
-        console.log('🔄 Останавливаем polling и ждем 5 секунд...');
-        bot.stopPolling().then(() => {
-            setTimeout(() => {
-                console.log('🔄 Перезапускаем polling...');
-                bot.startPolling().catch(err => {
-                    console.error('❌ Не удалось перезапустить polling:', err.message);
-                });
-            }, 5000);
-        }).catch(err => {
-            console.error('❌ Ошибка остановки polling:', err.message);
-        });
-    }
-});
-
-bot.on('polling_error', (error) => {
-    console.error('❌ Ошибка polling:', error);
-    // Если ошибка 409, это означает, что другой экземпляр уже работает
-    if (error.code === 'ETELEGRAM' && error.response?.statusCode === 409) {
-        console.log('⚠️ ВНИМАНИЕ: Другой экземпляр бота уже запущен!');
-        console.log('💡 Убедитесь, что:');
-        console.log('   1. Локально не запущен бот (node server/index.js)');
-        console.log('   2. На Railway только один активный деплой');
-        console.log('   3. Старые процессы бота остановлены');
-    }
 });
 
 // Graceful shutdown
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
     console.log('🛑 Получен сигнал SIGTERM, останавливаем бота...');
-    bot.stopPolling().then(() => {
-        console.log('✅ Polling остановлен');
-        process.exit(0);
-    });
+    try {
+        if (useWebhook) {
+            await bot.deleteWebHook();
+            console.log('✅ Webhook удален');
+        } else {
+            await bot.stopPolling();
+            console.log('✅ Polling остановлен');
+        }
+    } catch (err) {
+        console.error('Ошибка остановки:', err.message);
+    }
+    process.exit(0);
 });
 
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
     console.log('🛑 Получен сигнал SIGINT, останавливаем бота...');
-    bot.stopPolling().then(() => {
-        console.log('✅ Polling остановлен');
-        process.exit(0);
-    });
+    try {
+        if (useWebhook) {
+            await bot.deleteWebHook();
+            console.log('✅ Webhook удален');
+        } else {
+            await bot.stopPolling();
+            console.log('✅ Polling остановлен');
+        }
+    } catch (err) {
+        console.error('Ошибка остановки:', err.message);
+    }
+    process.exit(0);
 });
-
-console.log('✅ Telegram бот инициализирован');
 
 // Устанавливаем команды бота
 bot.setMyCommands([
@@ -324,12 +307,19 @@ bot.on('photo', async (msg) => {
     }
 });
 
+// Webhook endpoint для Telegram (должен быть до других POST маршрутов)
+app.post('/webhook', (req, res) => {
+    bot.processUpdate(req.body);
+    res.sendStatus(200);
+});
+
 // Health check endpoint
 app.get('/api/health', (req, res) => {
     res.json({
         status: 'OK',
         timestamp: new Date().toISOString(),
-        uptime: process.uptime()
+        uptime: process.uptime(),
+        botMode: useWebhook ? 'webhook' : 'polling'
     });
 });
 
@@ -376,7 +366,34 @@ app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, '../dist/index.html'));
 });
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
     console.log(`🚀 Server running on port ${PORT}`);
-    console.log(`🤖 Telegram bot is active`);
+
+    // Настраиваем бота в зависимости от окружения
+    if (useWebhook) {
+        // Режим webhook для Railway/продакшена
+        try {
+            const webhookUrl = `${webAppUrl}/webhook`;
+            await bot.setWebHook(webhookUrl);
+            console.log(`✅ Telegram webhook установлен: ${webhookUrl}`);
+            console.log(`🤖 Telegram bot активен (webhook mode)`);
+        } catch (error) {
+            console.error('❌ Ошибка настройки webhook:', error);
+            console.log('⚠️ Пробуем запустить polling как fallback...');
+            bot.startPolling({ polling: { interval: 1000 } }).catch(err => {
+                console.error('❌ Ошибка запуска polling:', err.message);
+            });
+        }
+    } else {
+        // Режим polling для локальной разработки
+        bot.startPolling({ polling: { interval: 1000 } }).then(() => {
+            console.log(`🤖 Telegram bot активен (polling mode)`);
+        }).catch(error => {
+            console.error('❌ Ошибка запуска polling:', error);
+            if (error.response?.statusCode === 409) {
+                console.log('⚠️ Другой экземпляр бота уже запущен!');
+                console.log('💡 Остановите другие экземпляры бота или используйте webhook');
+            }
+        });
+    }
 });
