@@ -191,6 +191,13 @@ async function analyzePhoto(imagePath) {
     }
 }
 
+// Универсальный обработчик для отладки - логируем все сообщения
+bot.on('message', (msg) => {
+    console.log('📬 Получено сообщение (обработчик message):', msg.text || 'не текстовое');
+    console.log('👤 От:', msg.from?.username || msg.from?.first_name);
+    console.log('💬 Chat ID:', msg.chat.id);
+});
+
 // Обработчик команды /start
 bot.onText(/\/start/, async (msg) => {
     console.log('✅ Обработчик /start вызван!');
@@ -443,26 +450,27 @@ app.listen(PORT, async () => {
                         console.log('🔄 Удаляем старый webhook...');
                         await bot.deleteWebHook({ drop_pending_updates: true });
                         console.log('✅ Старый webhook удален');
-                        
+
                         // Ждем, чтобы Telegram обработал удаление
                         await new Promise(resolve => setTimeout(resolve, 2000));
                     }
                 } else {
                     console.log('📋 Webhook не установлен, продолжаем...');
                 }
-                } catch (e) {
-                    console.log('⚠️ Не удалось получить информацию о webhook, продолжаем...');
-                    // Пытаемся удалить на всякий случай
-                    try {
-                        await bot.deleteWebHook({ drop_pending_updates: true });
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                    } catch (delErr) {
-                        // Игнорируем ошибки
-                    }
+            } catch (e) {
+                console.log('⚠️ Не удалось получить информацию о webhook, продолжаем...');
+                // Пытаемся удалить на всякий случай
+                try {
+                    await bot.deleteWebHook({ drop_pending_updates: true });
+                    await new Promise(resolve => setTimeout(resolve, 2000));
+                } catch (delErr) {
+                    // Игнорируем ошибки
                 }
+            }
 
             console.log(`🔗 Устанавливаем новый webhook: ${webhookUrl}`);
-            await bot.setWebHook(webhookUrl, { drop_pending_updates: true });
+            // НЕ удаляем ожидающие обновления, чтобы не потерять сообщения
+            await bot.setWebHook(webhookUrl, { drop_pending_updates: false });
 
             // Проверяем, что webhook установлен
             await new Promise(resolve => setTimeout(resolve, 1000));
@@ -477,37 +485,37 @@ app.listen(PORT, async () => {
                 console.log(`📋 Ожидаемый: ${webhookUrl}`);
                 console.log(`📋 Фактический: ${verifyInfo.url}`);
             }
-            } catch (error) {
-                console.error('❌ Ошибка настройки webhook:', error.message);
-                if (error.response?.statusCode === 409) {
-                    console.log('⚠️ Конфликт при установке webhook. Возможно, другой экземпляр пытается установить его.');
-                    console.log('💡 Решение: подождите 10-15 секунд и перезапустите приложение.');
-                } else {
-                    console.log('⚠️ Webhook не установлен. Бот не будет работать до исправления.');
-                }
-            }
-        } else {
-            // Режим polling для локальной разработки
-            console.log('🔄 Запускаем polling (локальная разработка)...');
-            try {
-                // Убедимся, что старый webhook удален
-                try {
-                    await bot.deleteWebHook({ drop_pending_updates: true });
-                } catch (e) {
-                    // Игнорируем ошибки
-                }
-
-                await bot.startPolling({ polling: { interval: 1000, params: { timeout: 10 } } });
-                console.log(`🤖 Telegram bot активен (polling mode)`);
-            } catch (error) {
-                console.error('❌ Ошибка запуска polling:', error.message);
-                if (error.response?.statusCode === 409) {
-                    console.log('⚠️ Другой экземпляр бота уже запущен!');
-                    console.log('💡 Решения:');
-                    console.log('   1. Остановите другие экземпляры бота');
-                    console.log('   2. Установите WEBAPP_URL в Railway для использования webhook');
-                    console.log('   3. Подождите 1-2 минуты и перезапустите');
-                }
+        } catch (error) {
+            console.error('❌ Ошибка настройки webhook:', error.message);
+            if (error.response?.statusCode === 409) {
+                console.log('⚠️ Конфликт при установке webhook. Возможно, другой экземпляр пытается установить его.');
+                console.log('💡 Решение: подождите 10-15 секунд и перезапустите приложение.');
+            } else {
+                console.log('⚠️ Webhook не установлен. Бот не будет работать до исправления.');
             }
         }
-    });
+    } else {
+        // Режим polling для локальной разработки
+        console.log('🔄 Запускаем polling (локальная разработка)...');
+        try {
+            // Убедимся, что старый webhook удален
+            try {
+                await bot.deleteWebHook({ drop_pending_updates: true });
+            } catch (e) {
+                // Игнорируем ошибки
+            }
+
+            await bot.startPolling({ polling: { interval: 1000, params: { timeout: 10 } } });
+            console.log(`🤖 Telegram bot активен (polling mode)`);
+        } catch (error) {
+            console.error('❌ Ошибка запуска polling:', error.message);
+            if (error.response?.statusCode === 409) {
+                console.log('⚠️ Другой экземпляр бота уже запущен!');
+                console.log('💡 Решения:');
+                console.log('   1. Остановите другие экземпляры бота');
+                console.log('   2. Установите WEBAPP_URL в Railway для использования webhook');
+                console.log('   3. Подождите 1-2 минуты и перезапустите');
+            }
+        }
+    }
+});
