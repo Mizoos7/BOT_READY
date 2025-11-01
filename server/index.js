@@ -71,7 +71,9 @@ console.log('Token:', process.env.TELEGRAM_BOT_TOKEN ? 'Найден' : 'НЕ Н
 
 // Определяем режим работы: webhook для Railway, polling для локальной разработки
 const useWebhook = process.env.RAILWAY_ENVIRONMENT || process.env.WEBAPP_URL;
-const webAppUrl = process.env.WEBAPP_URL || 'https://your-ngrok-url.ngrok.io';
+// Убираем завершающий слеш из URL если он есть
+const rawWebAppUrl = process.env.WEBAPP_URL || 'https://your-ngrok-url.ngrok.io';
+const webAppUrl = rawWebAppUrl.replace(/\/+$/, ''); // Удаляем завершающие слеши
 
 // Инициализируем бот без polling (будем использовать webhook или polling вручную)
 const bot = new TelegramBot(process.env.TELEGRAM_BOT_TOKEN);
@@ -309,8 +311,14 @@ bot.on('photo', async (msg) => {
 
 // Webhook endpoint для Telegram (должен быть до других POST маршрутов)
 app.post('/webhook', (req, res) => {
-    bot.processUpdate(req.body);
-    res.sendStatus(200);
+    try {
+        console.log('📥 Получено обновление от Telegram:', req.body?.message?.text || 'не текстовое сообщение');
+        bot.processUpdate(req.body);
+        res.sendStatus(200);
+    } catch (error) {
+        console.error('❌ Ошибка обработки webhook:', error);
+        res.sendStatus(200); // Всегда отвечаем 200, чтобы Telegram не повторял запрос
+    }
 });
 
 // Health check endpoint
