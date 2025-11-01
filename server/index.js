@@ -436,19 +436,20 @@ app.listen(PORT, async () => {
                         console.log(`✅ Webhook уже установлен на правильный URL`);
                         console.log(`📊 Ожидающих обновлений: ${webhookInfo.pending_update_count || 0}`);
                         console.log(`🤖 Telegram bot активен (webhook mode)`);
-                        // НЕ делаем return, чтобы продолжить проверку
+                        console.log('✅ Все обработчики готовы к работе');
+                        return; // Webhook уже установлен правильно
                     } else {
-
                         // Удаляем старый webhook
                         console.log('🔄 Удаляем старый webhook...');
                         await bot.deleteWebHook({ drop_pending_updates: true });
                         console.log('✅ Старый webhook удален');
-
+                        
                         // Ждем, чтобы Telegram обработал удаление
                         await new Promise(resolve => setTimeout(resolve, 2000));
-                    } else {
-                        console.log('📋 Webhook не установлен, продолжаем...');
                     }
+                } else {
+                    console.log('📋 Webhook не установлен, продолжаем...');
+                }
                 } catch (e) {
                     console.log('⚠️ Не удалось получить информацию о webhook, продолжаем...');
                     // Пытаемся удалить на всякий случай
@@ -460,8 +461,8 @@ app.listen(PORT, async () => {
                     }
                 }
 
-                console.log(`🔗 Устанавливаем новый webhook: ${webhookUrl}`);
-                await bot.setWebHook(webhookUrl, { drop_pending_updates: true });
+            console.log(`🔗 Устанавливаем новый webhook: ${webhookUrl}`);
+            await bot.setWebHook(webhookUrl, { drop_pending_updates: true });
 
             // Проверяем, что webhook установлен
             await new Promise(resolve => setTimeout(resolve, 1000));
